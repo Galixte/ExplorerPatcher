@@ -2,6 +2,92 @@
 
 This document includes the same release notes as in the [Releases](https://github.com/valinet/ExplorerPatcher/releases) section on GitHub.
 
+## 22000.318.37
+
+Tested on build 22000.318 and 22000.346 (currently in Windows Insider beta and release preview channels).
+
+#### New features
+
+* The configuration interface is now accessed by right clicking on the taskbar and choosing "Properties" (previously, it was available in the `Win`+`X` menu). This behavior works when either the Windows 10 or Windows 11 taskbar is enabled. As well, you can launch the "Properties" window directly by pressing `Win`+`R` and typing `rundll32 C:\Windows\dxgi.dll,ZZGUI`, followed by `Enter`.
+* Implemented a setup program:
+  * To install, simply run `ep_setup.exe`. File Explorer will restart and the program will be enabled right away.
+  * To uninstall, there are 2 options:
+    * Run `ep_setup.exe` again.
+    * Via "Programs and Features" in Control Panel, or "Apps and features" in the Settings app.
+  * Learn more about the setup program [here](https://github.com/valinet/ExplorerPatcher/wiki/Installer-How-To)
+* Implemented automatic updates; there are 3 settings to choose from when File Explorer starts:
+  * Notify about available updates (default) - the program will check for updates and display a notification if a new build is available; you can go to "Properties" and install the update from there
+  * Prompt to install available updates - the program will check for updates, download them if any, and prompt you to install them automatically
+  * Do not check for updates - the program never checks for updates in the background
+  * Of course, you can manually check for updates at any point using "Properties" - "Updates" - "Check for updates". To install the update you were notified about, go to "Properties" - "Updates" - "Install latest version".
+  * When installing an update, you will be prompted using UAC to allow elevation - always check that the update originates from matches what you expect; official updates are currently served via https://github.com/valinet/ExplorerPatcher.
+  * Learn more about how to configure updates on your system, including how to set a custom endpoint [here](https://github.com/valinet/ExplorerPatcher/wiki/Configure-updates)
+* Implemented a proper right click menu for the Windows 11 taskbar - it displays the most common options, similar to previous Windows releases and the Windows 10 taskbar, including frequently accessed items like "Taskbar settings", "Task Manager" and "Show the desktop"
+* System tray icons are now left intact when switching between the Windows 10 and Windows 11 taskbars, or when switching builds, reinstalling the application etc. Basically, now, once you set a certain layout for the system tray with the Windows 10 taskbar, it will always be remembered, instead of the annoying behavior where Windows was discarding your choices in order to accommodate the Windows 11 taskbar
+
+#### Feature enhancements
+
+* Hardcoded symbols are now based on file hashes, not build numbers
+* Better organization for the settings in "Properties"
+* Update toast notifications are displayed only as long as they are required. Subsequent notifications no longer have to wait for the previous ones to timeout, but rather they replace the previous ones (#346) (.2)
+
+#### Fixes
+
+* Mitigated an issue that prevented the Windows 11 taskbar from displaying properly under certain circumstances
+* Fixed an issue that would crash the Windows 11 taskbar when it was enabled after positioning the Windows 10 taskbar on either side of the screen (left/right)
+* Fixed a bug in "Windows 10 Window switcher" that may have lead to `explorer.exe` crashing when more than 20 windows are opened on the screen (probably the cause for a lot of crashes)
+* Fixed numerous issues when injecting processes, including as shell extension; reliability improvements
+* Adjusted the padding of the system tray hidden icons indicator so that it is now properly centered vertically when using the classic theme mitigations
+* Fixed a memory leak in "Settings Manager"
+* Removed verbose output from "Settings Manager"
+* Corrected import from `dxgi.dll`
+* Fixed typo in configuration UI (#346) (.1)
+* Fixed typos and spelling in error message (#346) (.2)
+* Fixed bug that prevented "Properties" from working when invoked from Quick Launch or other toolbars (#349) (.2)
+* As you may have noticed, releases do not contain unpacked files anymore. Thus, for people looking for a quick way to get the unpacked files, the release notes now include a link to the artifacts generated during during the build process. The artifacts include the usual DLLs (including `dxgi.dll`), plus symbol files and all the helper executables generated during the build. (#351) (.2)
+* Setup program version is synchronized with the version of the application (.2)
+* Fixed a mismatch between the default value for the setting "Add shortcut to program settings in Win+X menu" displayed in the UI and actually used in the software (#352) (.2)
+* Fixed an issue that prevented "Restore default settings" in the "Properties" UI from working (#374) (.3)
+* Improved some wording in the Properties UI (#377) (.4)
+* Added option to show separators between toolbars in the taskbar (#379) (.4)
+* "Properties" is restarted when doing an install/update and closed when uninstalling the application (.5)
+* "Properties" can open the last used section when starting (.5)
+
+## 22000.318.36
+
+Tested on build 22000.318.
+
+#### Fixes
+
+* Fixes an issue that prevented Explorer from starting up when Windows 10 taskbar was disabled and Windows 10 window switcher was enabled (#313) (.1)
+* Lots of bug and issue fixes for shell extension failing to work under certain circumstances (#259)
+
+## 22000.318.35
+
+Tested on build 22000.318.
+
+#### Feature enhancements
+
+* Start menu position can now be changed without needing to restart File Explorer
+
+#### Fixes
+
+* Improved reliability of Start menu positioning when the monitor topology changes and at startup
+* Start menu injection returns error codes from the remote process in the debug console
+* Other Start menu quality of life improvements
+
+## 22000.318.34
+
+Tested on build 22000.318.
+
+#### New features
+
+* Added option to enable legacy list view ("SysListView32") in File Explorer (credit @toiletflusher, @anixx from WinClassic) (.1)
+
+#### Feature enhancements
+
+* Built-in support for build 22000.318
+
 ## 22000.282.33
 
 Tested on build 22000.282.
