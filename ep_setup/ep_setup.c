@@ -295,6 +295,62 @@ int WINAPI wWinMain(
 
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
+    int argc = 0;
+    LPWSTR* wargv = CommandLineToArgvW(
+        lpCmdLine,
+        &argc
+    );
+
+    WCHAR wszPath[MAX_PATH];
+    ZeroMemory(wszPath, MAX_PATH * sizeof(WCHAR));
+
+    if (argc >= 1 && !_wcsicmp(wargv[0], L"/extract"))
+    {
+        if (argc >= 2)
+        {
+            wcsncpy_s(wszPath, MAX_PATH, wargv[1], MAX_PATH);
+            CreateDirectoryW(wargv[1], NULL);
+        }
+        else
+        {
+            GetCurrentDirectoryW(MAX_PATH, wszPath);
+        }
+        if (bOk)
+        {
+            wcscat_s(wszPath, MAX_PATH, L"\\" _T(PRODUCT_NAME) L".IA-32.dll");
+            bOk = InstallResource(TRUE, hInstance, IDR_EP_IA32, wszPath);
+        }
+        if (argc >= 2)
+        {
+            wcsncpy_s(wszPath, MAX_PATH, wargv[1], MAX_PATH);
+        }
+        else
+        {
+            GetCurrentDirectoryW(MAX_PATH, wszPath);
+        }
+        if (bOk)
+        {
+            wcscat_s(wszPath, MAX_PATH, L"\\" _T(PRODUCT_NAME) L".amd64.dll");
+            bOk = InstallResource(TRUE, hInstance, IDR_EP_AMD64, wszPath);
+        }
+        return 0;
+    }
+
+    bInstall = !(argc >= 1 && (!_wcsicmp(wargv[0], L"/uninstall") || !_wcsicmp(wargv[0], L"/uninstall_silent")));
+    bIsUpdate = (argc >= 1 && !_wcsicmp(wargv[0], L"/update_silent"));
+    if (!bInstall && !_wcsicmp(wargv[0], L"/uninstall"))
+    {
+        if (MessageBoxW(
+            NULL,
+            L"Are you sure you want to remove " _T(PRODUCT_NAME) L" from your computer?",
+            _T(PRODUCT_NAME),
+            MB_YESNO | MB_DEFBUTTON2 | MB_ICONQUESTION
+        ) == IDNO)
+        {
+            exit(0);
+        }
+    }
+
     if (!IsAppRunningAsAdminMode())
     {
         WCHAR wszPath[MAX_PATH];
@@ -306,7 +362,7 @@ int WINAPI wWinMain(
             sei.cbSize = sizeof(sei);
             sei.lpVerb = L"runas";
             sei.lpFile = wszPath;
-            sei.lpParameters = lpCmdLine;
+            sei.lpParameters = !bInstall ? L"/uninstall_silent" : lpCmdLine;
             sei.hwnd = NULL;
             sei.nShow = SW_NORMAL;
             if (!ShellExecuteExW(&sei))
@@ -316,38 +372,6 @@ int WINAPI wWinMain(
                 {
                 }
             }
-            exit(0);
-        }
-    }
-
-    int argc = 0;
-    LPWSTR* wargv = CommandLineToArgvW(
-        lpCmdLine,
-        &argc
-    );
-
-    bIsUpdate = (argc >= 1 && !_wcsicmp(wargv[0], L"/update_silent"));
-
-    WCHAR wszPath[MAX_PATH];
-    ZeroMemory(wszPath, MAX_PATH * sizeof(WCHAR));
-    if (bOk)
-    {
-        bOk = GetWindowsDirectoryW(wszPath, MAX_PATH);
-    }
-    if (bOk)
-    {
-        wcscat_s(wszPath, MAX_PATH, L"\\dxgi.dll");
-        bInstall = !FileExistsW(wszPath) || bIsUpdate;
-    }
-    if (!bInstall)
-    {
-        if (MessageBoxW(
-            NULL,
-            L"Are you sure you want to remove " _T(PRODUCT_NAME) L" from your computer?",
-            _T(PRODUCT_NAME),
-            MB_YESNO | MB_DEFBUTTON2 | MB_ICONQUESTION
-        ) == IDNO)
-        {
             exit(0);
         }
     }
@@ -524,8 +548,18 @@ int WINAPI wWinMain(
         }
         if (bOk)
         {
-            SHGetFolderPathW(NULL, SPECIAL_FOLDER, NULL, SHGFP_TYPE_CURRENT, wszPath);
-            wcscat_s(wszPath, MAX_PATH, _T(APP_RELATIVE_PATH) L"\\" _T(SETUP_UTILITY_NAME));
+            bOk = GetWindowsDirectoryW(wszPath, MAX_PATH);
+        }
+        if (bOk)
+        {
+            wcscat_s(wszPath, MAX_PATH, L"\\SystemApps\\ShellExperienceHost_cw5n1h2txyewy\\dxgi.dll");
+            bOk = InstallResource(bInstall, hInstance, IDR_EP_AMD64, wszPath);
+        }
+        if (bOk)
+        {
+            wszPath[0] = L'"';
+            SHGetFolderPathW(NULL, SPECIAL_FOLDER, NULL, SHGFP_TYPE_CURRENT, wszPath + 1);
+            wcscat_s(wszPath, MAX_PATH, _T(APP_RELATIVE_PATH) L"\\" _T(SETUP_UTILITY_NAME) L"\" /uninstall");
             bOk = SetupUninstallEntry(bInstall, wszPath);
         }
 
