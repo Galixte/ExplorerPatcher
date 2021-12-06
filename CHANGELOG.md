@@ -2,6 +2,69 @@
 
 This document includes the same release notes as in the [Releases](https://github.com/valinet/ExplorerPatcher/releases) section on GitHub.
 
+## 22000.348.40
+
+Tested on build 22000.348.
+
+#### Highlights
+
+* Primary taskbar remembers position when moved to a secondary monitor (multiple issues, like #504)
+* Ability to set Control Center as network icon action (merged #492)
+* Added possibility to use the original Windows 10 (Alt-Tab) window switcher; thus, the available options are now:
+  * Windows 11 switcher - full screeen, slow, tiny selection outline, slow opening times
+  * Windows 10 switcher - pretty good but lacks customization options
+  * Windows NT switcher - the classic simple icon-based interface hosted by `csrss`
+  * Simple Window Switcher - my own take on implementing this kind of functionality
+* Registry access in the "Properties" GUI is now virtualized; that means, the same lightweight infrastructure is maintained but more complex behaviors can be offered via the improved backend; as such, this version introduces the following new configuration options:
+  * Primary and secondary taskbar placement
+  * Automatically hide the taskbar
+* Proper activation of the "Properties" window when another instance is running and minimized
+* Symbols parsing success notification displays for longer
+* Debug builds are clearly indicated in the "About" page of "Properties"
+* Fixed solution to properly produce a debug setup program
+* Possibility to uninstall by renaming `ep_setup.exe` to `ep_uninstall.exe` and running that (.4)
+
+#### Simple Window Switcher
+
+* Dramatically improved performance, refactored application; switched to building the window lists faster, on demand, so that the proper windows are always displayed (as far as I remember, the latest `IsAltTabWindow` is based on a function called `IsTaskedWindow` ripped straight from AltTab.dll from Windows 7 6.1.7600.16385)
+* Proper history of window activations is maintained internally
+* Implemented support for layered windows, thus making transparency possible when using the default theme (Acrylic and Mica brushes are still available, but those have the disadvantage that the system can disable them in certain scenarios, like saving energy when working on battery power)
+* Improved reliability of startup delay and window dismiss when quickly Alt-Tabbing
+* Window icons are retrieved async now
+* Better icon drawing using GDI+ flat API
+* Reversed UWP apps detection to checking whether the executable is called ApplicationFrameHost.exe
+* Added some more debug messages
+* Fixed some rendering problems when themes are disabled
+* Fixed regression of [#161](https://github.com/valinet/ExplorerPatcher/issues/161#issuecomment-986234002) (.1)
+* Possibility to disable per-application window lists (`Alt`+`) ([#283](https://github.com/valinet/ExplorerPatcher/issues/283#issuecomment-986261712)) (.2)
+* Fixed bug that prevented proper loading of default settings (.3)
+* Implemented a mitigation for #516: gestures for switching apps on Windows Precision Touchpad devices trigger the Windows 10 switcher instead of the Windows 11 switcher, which is much closer to how Simple Window Switcher looks and behaves; ideally, a full solution for this should be provided in the future, in the form of support for activation and navigation using Windows Precision Touchpad gestures in the Simple Window Switcher (.5)
+
+## 22000.348.39
+
+Tested on build 22000.348.
+
+#### New features
+
+* Built-in support for build 22000.348.
+* Implemented option to toggle taskbar auto-hide when double clicking the main taskbar (#389)
+* Running `ep_setup.exe` again while EP is already installed will now update the program to the latest version. To uninstall, as the previous behavior did, run `ep_setup.exe /uninstall`
+* Implemented absolute height and width parameters for the Windows 10 switcher. These are especially useful for ultra wide monitors, in a scenario similar to the one described in [this post](https://github.com/valinet/ExplorerPatcher/discussions/110#discussioncomment-1673007) - to configure, set `MaxWidthAbs` and/or `MaxHeightAbs` DWORD values in `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\ExplorerPatcher\sws` (#110)
+* Provides a simple mechanism for chainloading a custom library when the shell interface is created, from which you can execute your custom code (subject to change, see [this](https://github.com/valinet/ExplorerPatcher/discussions/408#discussioncomment-1674348) for more details) (#408)
+
+#### Feature enhancements
+
+* Option to receive pre-release versions, if available, when checking for updates
+* Improved behavior regarding symbol data information; please refer to https://github.com/valinet/ExplorerPatcher/wiki/Symbols for more information (.1)
+
+#### Fixes
+
+* Fixed mismatches between defaults from EP and Windows' defaults
+* Application starts with limited functionality on builds lacking hardcoded symbol information; symbol downloading is disabled for now, by default, but can be enabled in the "Advanced" settings section of "Properties"
+* Improvements to how hung windows are treated by the Windows 10 window switcher; fixed an issue that severely delayed the time it took the window switcher to display when a window hung on the screen (#449)
+* Clicking "Close" in the Windows 10 window switcher is now more tolerant to small mouse movements (#110) (.1)
+* The existing "Properties" window is properly displayed if opening it when another instance is already running and is minimized (.2)
+
 ## 22000.318.38
 
 Tested on build 22000.318.

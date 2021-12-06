@@ -65,14 +65,14 @@ DWORD bClassicThemeMitigations = FALSE;
 DWORD bHookStartMenu = TRUE;
 DWORD bPropertiesInWinX = FALSE;
 DWORD bNoMenuAccelerator = FALSE;
-DWORD bTaskbarMonitorOverride = 0;
 DWORD dwIMEStyle = 0;
 DWORD dwTaskbarAl = 1;
 DWORD bShowUpdateToast = FALSE;
 DWORD bToolbarSeparators = FALSE;
 DWORD bTaskbarAutohideOnDoubleClick = FALSE;
 DWORD dwOrbStyle = 0;
-DWORD bEnableSymbolDownload = FALSE;
+DWORD bEnableSymbolDownload = TRUE;
+DWORD dwAltTabSettings = 0;
 HMODULE hModule = NULL;
 HANDLE hDelayedInjectionThread = NULL;
 HANDLE hIsWinXShown = NULL;
@@ -577,6 +577,18 @@ void LaunchNetworkTargets(DWORD dwTarget)
             NULL,
             SW_SHOWNORMAL
         );
+    }
+    else if (dwTarget == 6)
+    {
+        InvokeActionCenter();
+        // ShellExecuteW(
+        //     NULL,
+        //     L"open",
+        //     L"ms-actioncenter:controlcenter/&showFooter=true",
+        //     NULL,
+        //     NULL,
+        //     SW_SHOWNORMAL
+        // );
     }
     else if (dwTarget == 1)
     {
@@ -2668,7 +2680,7 @@ HRESULT pnidui_CoCreateInstanceHook(
     {
         if (dwVal)
         {
-            if (dwVal == 5)
+            if (dwVal == 5 || dwVal == 6)
             {
                 if (hCheckForegroundThread)
                 {
@@ -3413,8 +3425,19 @@ void sws_ReadSettings(sws_WindowSwitcher* sws)
                 &(sws->dwMaxAbsoluteHP),
                 &dwSize
             );
-            if (sws)
+            dwSize = sizeof(DWORD);
+            RegQueryValueExW(
+                hKey,
+                TEXT("NoPerApplicationList"),
+                0,
+                NULL,
+                &(sws->bNoPerApplicationList),
+                &dwSize
+            );
+            if (sws->bIsInitialized)
             {
+                sws_WindowSwitcher_UnregisterHotkeys(sws);
+                sws_WindowSwitcher_RegisterHotkeys(sws, NULL);
                 sws_WindowSwitcher_RefreshTheme(sws);
             }
         }
@@ -3432,13 +3455,19 @@ DWORD WindowSwitcher(DWORD unused)
 
     while (TRUE)
     {
+        Sleep(5000);
         sws_ReadSettings(NULL);
         if (sws_IsEnabled)
         {
             sws_error_t err;
-            sws_WindowSwitcher* sws = NULL;
-            err = sws_error_Report(sws_error_GetFromInternalError(sws_WindowSwitcher_Initialize(&sws, FALSE)), NULL);
+            sws_WindowSwitcher* sws = calloc(1, sizeof(sws_WindowSwitcher));
+            if (!sws)
+            {
+                return 0;
+            }
+            sws_WindowSwitcher_InitializeDefaultSettings(sws);
             sws_ReadSettings(sws);
+            err = sws_error_Report(sws_error_GetFromInternalError(sws_WindowSwitcher_Initialize(&sws, FALSE)), NULL);
             if (err == SWS_ERROR_SUCCESS)
             {
                 sws_WindowSwitcher_RefreshTheme(sws);
@@ -3485,6 +3514,7 @@ DWORD WindowSwitcher(DWORD unused)
                     }
                 }
                 sws_WindowSwitcher_Clear(sws);
+                free(sws);
             }
             else
             {
@@ -3549,6 +3579,7 @@ void WINAPI LoadSettings(BOOL bIsExplorer)
         if (dwTemp)
         {
 #if defined(DEBUG) | defined(_DEBUG)
+            printf("[Memcheck] Dumping memory leaks...\n");
             _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
             _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDOUT);
             _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
@@ -3556,6 +3587,7 @@ void WINAPI LoadSettings(BOOL bIsExplorer)
             _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
             _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDOUT);
             _CrtDumpMemoryLeaks();
+            printf("[Memcheck] Memory leak dump complete.\n");
 #endif
             dwTemp = 0;
             RegSetValueExW(
@@ -3755,15 +3787,6 @@ void WINAPI LoadSettings(BOOL bIsExplorer)
         dwSize = sizeof(DWORD);
         RegQueryValueExW(
             hKey,
-            TEXT("TaskbarMonitorOverride"),
-            0,
-            NULL,
-            &bTaskbarMonitorOverride,
-            &dwSize
-        );
-        dwSize = sizeof(DWORD);
-        RegQueryValueExW(
-            hKey,
             TEXT("IMEStyle"),
             0,
             NULL,
@@ -3842,6 +3865,36 @@ void WINAPI LoadSettings(BOOL bIsExplorer)
         }
         RegCloseKey(hKey);
     }
+
+    RegCreateKeyExW(
+        HKEY_CURRENT_USER,
+        L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer",
+        0,
+        NULL,
+        REG_OPTION_NON_VOLATILE,
+        KEY_READ | KEY_WOW64_64KEY,
+        NULL,
+        &hKey,
+        NULL
+    );
+    if (hKey == NULL || hKey == INVALID_HANDLE_VALUE)
+    {
+        hKey = NULL;
+    }
+    if (hKey)
+    {
+        dwSize = sizeof(DWORD);
+        RegQueryValueExW(
+            hKey,
+            TEXT("AltTabSettings"),
+            0,
+            NULL,
+            &dwAltTabSettings,
+            &dwSize
+        );
+        RegCloseKey(hKey);
+    }
+
 
     RegCreateKeyExW(
         HKEY_CURRENT_USER,
@@ -4918,14 +4971,14 @@ LSTATUS twinuipcshell_RegGetValueW(
 {
     LSTATUS lRes = RegGetValueW(hkey, lpSubKey, lpValue, dwFlags, pdwType, pvData, pcbData);
 
-    if (!bOldTaskbar && !lstrcmpW(lpValue, L"AltTabSettings"))
+    if (!lstrcmpW(lpValue, L"AltTabSettings"))
     {
-        if (*(DWORD*)pvData)
+        if (lRes == ERROR_SUCCESS && *(DWORD*)pvData)
         {
             *(DWORD*)pvData = 1;
         }
 
-        if (hWin11AltTabInitialized)
+        if (!bOldTaskbar && hWin11AltTabInitialized)
         {
             SetEvent(hWin11AltTabInitialized);
             CloseHandle(hWin11AltTabInitialized);
@@ -4936,42 +4989,6 @@ LSTATUS twinuipcshell_RegGetValueW(
     }
 
     return lRes;
-}
-
-BOOL CALLBACK GetMonitorByIndex(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, RECT* rc)
-{
-    //printf(">> %d %d %d %d\n", lprcMonitor->left, lprcMonitor->top, lprcMonitor->right, lprcMonitor->bottom);
-    if (--rc->left < 0)
-    {
-        *rc = *lprcMonitor;
-        return FALSE;
-    }
-    return TRUE;
-}
-
-HMONITOR explorer_MonitorFromRect(LPCRECT lprc, DWORD dwFlags)
-{
-    /*printf("%d %d %d %d\n", lprc->left, lprc->top, lprc->right, lprc->bottom);
-
-        return MonitorFromRect(lprc, dwFlags);
-    //}*/
-    if (bTaskbarMonitorOverride)
-    {
-        RECT rc;
-        ZeroMemory(&rc, sizeof(RECT));
-        rc.left = bTaskbarMonitorOverride - 1;
-        EnumDisplayMonitors(
-            NULL,
-            NULL,
-            GetMonitorByIndex,
-            &rc
-        );
-        if (rc.top != rc.bottom)
-        {
-            return MonitorFromRect(&rc, dwFlags);
-        }
-    }
-    return MonitorFromRect(lprc, dwFlags);
 }
 
 HRESULT (*explorer_SHCreateStreamOnModuleResourceWFunc)(
@@ -5084,6 +5101,92 @@ HRESULT WINAPI explorer_SHCreateStreamOnModuleResourceWHook(
 #pragma endregion
 
 
+#pragma region "Remember primary taskbar positioning"
+BOOL bTaskbarFirstTimePositioning = FALSE;
+BOOL bTaskbarSet = FALSE;
+
+BOOL explorer_SetRect(LPRECT lprc, int xLeft, int yTop, int xRight, int yBottom)
+{
+    BOOL bIgnore = FALSE;
+    if (bTaskbarFirstTimePositioning)
+    {
+        bIgnore = bTaskbarSet;
+    }
+    else
+    {
+        bTaskbarFirstTimePositioning = TRUE;
+        bIgnore = (GetSystemMetrics(SM_CMONITORS) == 1);
+        bTaskbarSet = bIgnore;
+    }
+
+    if (bIgnore)
+    {
+        return SetRect(lprc, xLeft, yTop, xRight, yBottom);
+    }
+    if (xLeft)
+    {
+        return SetRect(lprc, xLeft, yTop, xRight, yBottom);
+    }
+    if (yTop)
+    {
+        return SetRect(lprc, xLeft, yTop, xRight, yBottom);
+    }
+    if (xRight != GetSystemMetrics(SM_CXSCREEN))
+    {
+        return SetRect(lprc, xLeft, yTop, xRight, yBottom);
+    }
+    if (yBottom != GetSystemMetrics(SM_CYSCREEN))
+    {
+        return SetRect(lprc, xLeft, yTop, xRight, yBottom);
+    }
+
+    bTaskbarSet = TRUE;
+    
+    StuckRectsData srd;
+    DWORD pcbData = sizeof(StuckRectsData);
+    RegGetValueW(
+        HKEY_CURRENT_USER,
+        L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StuckRectsLegacy",
+        L"Settings",
+        REG_BINARY,
+        NULL,
+        &srd,
+        &pcbData);
+
+    if (pcbData != sizeof(StuckRectsData))
+    {
+        return SetRect(lprc, xLeft, yTop, xRight, yBottom);
+    }
+
+    if (srd.pvData[0] != sizeof(StuckRectsData))
+    {
+        return SetRect(lprc, xLeft, yTop, xRight, yBottom);
+    }
+
+    if (srd.pvData[1] != -2)
+    {
+        return SetRect(lprc, xLeft, yTop, xRight, yBottom);
+    }
+
+    HMONITOR hMonitor = MonitorFromRect(&(srd.rc), MONITOR_DEFAULTTOPRIMARY);
+    MONITORINFO mi;
+    ZeroMemory(&mi, sizeof(MONITORINFO));
+    mi.cbSize = sizeof(MONITORINFO);
+    if (!GetMonitorInfoW(hMonitor, &mi))
+    {
+        return SetRect(lprc, xLeft, yTop, xRight, yBottom);
+    }
+
+    if (lprc)
+    {
+        *lprc = mi.rcMonitor;
+        return TRUE;
+    }
+
+    return FALSE;
+}
+#pragma endregion
+
 DWORD InjectBasicFunctions(BOOL bIsExplorer, BOOL bInstall)
 {
     //Sleep(150);
@@ -5191,6 +5294,24 @@ DWORD InjectBasicFunctions(BOOL bIsExplorer, BOOL bInstall)
     }
 }
 
+INT64(*twinui_pcshell_IsUndockedAssetAvailableFunc)(INT a1, INT64 a2, INT64 a3, const char* a4);
+INT64 twinui_pcshell_IsUndockedAssetAvailableHook(INT a1, INT64 a2, INT64 a3, const char* a4)
+{
+    if (dwAltTabSettings == 3 || dwAltTabSettings == 2)
+    {
+        return 0;
+    }
+    else
+    {
+        return twinui_pcshell_IsUndockedAssetAvailableFunc(a1, a2, a3, a4);
+    }
+}
+
+BOOL IsDebuggerPresentHook()
+{
+    return FALSE;
+}
+
 DWORD Inject(BOOL bIsExplorer)
 {
 #if defined(DEBUG) | defined(_DEBUG)
@@ -5222,7 +5343,7 @@ DWORD Inject(BOOL bIsExplorer)
         hSwsOpacityMaybeChanged = CreateEventW(NULL, FALSE, FALSE, NULL);
     }
 
-    unsigned int numSettings = bIsExplorer ? 11 : 2;
+    unsigned int numSettings = bIsExplorer ? 12 : 2;
     Setting* settings = calloc(numSettings, sizeof(Setting));
     if (settings)
     {
@@ -5349,6 +5470,17 @@ DWORD Inject(BOOL bIsExplorer)
             cs++;
         }
 
+        if (cs < numSettings)
+        {
+            settings[cs].callback = LoadSettings;
+            settings[cs].data = bIsExplorer;
+            settings[cs].hEvent = NULL;
+            settings[cs].hKey = NULL;
+            wcscpy_s(settings[cs].name, MAX_PATH, L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer");
+            settings[cs].origin = HKEY_CURRENT_USER;
+            cs++;
+        }
+
         SettingsChangeParameters* settingsParams = calloc(1, sizeof(SettingsChangeParameters));
         if (settingsParams)
         {
@@ -5417,17 +5549,13 @@ DWORD Inject(BOOL bIsExplorer)
     );
     if (LoadSymbols(&symbols_PTRS, hModule))
     {
-        if (!bEnableSymbolDownload)
+        if (bEnableSymbolDownload)
         {
-            printf("Unable to load symbols; the program may have limited functionality.\n");
-        }
-        else
-        {
-            printf("Symbols have to be (re)downloaded...\n");
+            printf("Attempting to download symbol data; for now, the program may have limited functionality.\n");
             DownloadSymbolsParams* params = malloc(sizeof(DownloadSymbolsParams));
             params->hModule = hModule;
+            params->bVerbose = FALSE;
             CreateThread(0, 0, DownloadSymbols, params, 0, 0);
-            return 0;
         }
     }
     else
@@ -5456,7 +5584,6 @@ DWORD Inject(BOOL bIsExplorer)
         VnPatchIAT(hExplorer, "API-MS-WIN-CORE-REGISTRY-L1-1-0.DLL", "RegSetValueExW", explorer_RegSetValueExW);
         VnPatchIAT(hExplorer, "API-MS-WIN-CORE-REGISTRY-L1-1-0.DLL", "RegCreateKeyExW", explorer_RegCreateKeyExW);
         VnPatchIAT(hExplorer, "API-MS-WIN-SHCORE-REGISTRY-L1-1-0.DLL", "SHGetValueW", explorer_SHGetValueW);
-        VnPatchIAT(hExplorer, "user32.dll", "MonitorFromRect", explorer_MonitorFromRect);
         VnPatchIAT(hExplorer, "user32.dll", "LoadMenuW", explorer_LoadMenuW);
     }
     VnPatchIAT(hExplorer, "API-MS-WIN-CORE-REGISTRY-L1-1-0.DLL", "RegOpenKeyExW", explorer_RegOpenKeyExW);
@@ -5488,6 +5615,10 @@ DWORD Inject(BOOL bIsExplorer)
     if (bOldTaskbar && dwIMEStyle)
     {
         VnPatchIAT(hExplorer, "api-ms-win-core-com-l1-1-0.dll", "CoCreateInstance", explorer_CoCreateInstanceHook);
+    }
+    if (bOldTaskbar)
+    {
+        VnPatchIAT(hExplorer, "API-MS-WIN-NTUSER-RECTANGLE-L1-1-0.DLL", "SetRect", explorer_SetRect);
     }
 
 
@@ -5590,6 +5721,22 @@ DWORD Inject(BOOL bIsExplorer)
         }
     }
 
+    if (symbols_PTRS.twinui_pcshell_PTRS[7] && symbols_PTRS.twinui_pcshell_PTRS[7] != 0xFFFFFFFF)
+    {
+        twinui_pcshell_IsUndockedAssetAvailableFunc = (INT64(*)(void*, POINT*))
+            ((uintptr_t)hTwinuiPcshell + symbols_PTRS.twinui_pcshell_PTRS[7]);
+        rv = funchook_prepare(
+            funchook,
+            (void**)&twinui_pcshell_IsUndockedAssetAvailableFunc,
+            twinui_pcshell_IsUndockedAssetAvailableHook
+        );
+        if (rv != 0)
+        {
+            FreeLibraryAndExitThread(hModule, rv);
+            return rv;
+        }
+    }
+
     if (symbols_PTRS.twinui_pcshell_PTRS[TWINUI_PCSHELL_SB_CNT - 1] && symbols_PTRS.twinui_pcshell_PTRS[TWINUI_PCSHELL_SB_CNT - 1] != 0xFFFFFFFF)
     {
         winrt_Windows_Internal_Shell_implementation_MeetAndChatManager_OnMessageFunc = (INT64(*)(void*, POINT*))
@@ -5606,6 +5753,7 @@ DWORD Inject(BOOL bIsExplorer)
         }
     }
     VnPatchIAT(hTwinuiPcshell, "API-MS-WIN-CORE-REGISTRY-L1-1-0.DLL", "RegGetValueW", twinuipcshell_RegGetValueW);
+    //VnPatchIAT(hTwinuiPcshell, "api-ms-win-core-debug-l1-1-0.dll", "IsDebuggerPresent", IsDebuggerPresentHook);
     printf("Setup twinui.pcshell functions done\n");
 
 
